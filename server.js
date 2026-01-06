@@ -24,12 +24,7 @@ if (process.env.NODE_ENV !== 'test') {
 const app = express();
 
 app.use(helmet());
-app.use(cors({
-  origin: ['http://localhost:4200', 'http://localhost:4201', 'http://localhost:3000', 'http://localhost:8080'],
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With']
-}));
+app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
