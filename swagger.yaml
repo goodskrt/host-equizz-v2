@@ -1,0 +1,425 @@
+openapi: 3.0.0
+info:
+  title: API EQuizz
+  description: API Backend pour la plateforme d'évaluation des enseignements (Institut Saint Jean).
+  version: 1.0.0
+  contact:
+    name: Groupe 6
+    email: support@institutsaintjean.org
+servers:
+  - url: http://localhost:5000/api
+    description: Serveur de Développement Local
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    User:
+      type: object
+      properties:
+        _id:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+          enum: [STUDENT, ADMIN]
+        classId:
+          type: string
+    
+    LoginRequest:
+      type: object
+      required:
+        - identifier
+        - password
+      properties:
+        identifier:
+          type: string
+          description: Email institutionnel ou Matricule
+          example: "steaphen.kuate@institutsaintjean.org"
+        password:
+          type: string
+          example: "password123"
+
+    RegisterRequest:
+      type: object
+      required:
+        - matricule
+        - firstName
+        - lastName
+        - email
+        - password
+      properties:
+        matricule:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+        password:
+          type: string
+        classId:
+          type: string
+
+    Quiz:
+      type: object
+      properties:
+        title:
+          type: string
+        type:
+          type: string
+          enum: [MI_PARCOURS, FINAL]
+        questions:
+          type: array
+          items:
+            type: object
+            properties:
+              questionId: 
+                type: string
+              textSnapshot: 
+                type: string
+
+    Submission:
+      type: object
+      required:
+        - quizId
+        - answers
+      properties:
+        quizId:
+          type: string
+        answers:
+          type: array
+          items:
+            type: object
+            properties:
+              questionId:
+                type: string
+              value:
+                type: string
+                description: Texte de la réponse ou choix QCM
+
+security:
+  - bearerAuth: []
+
+paths:
+  # --- AUTHENTIFICATION ---
+  /auth/login:
+    post:
+      summary: Connexion utilisateur
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        200:
+          description: Connexion réussie
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/User'
+        401:
+          description: Identifiants invalides
+
+  /auth/register:
+    post:
+      summary: Inscription Étudiant
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        201:
+          description: Compte créé
+        400:
+          description: Email non institutionnel ou utilisateur existant
+
+  # --- GESTION ACADÉMIQUE (ADMIN) ---
+  /admin/years:
+    get:
+      summary: Lister les années académiques
+      tags: [Academic]
+      responses:
+        200:
+          description: Liste des années
+    post:
+      summary: Créer une année académique
+      tags: [Academic]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                label: 
+                  type: string
+                  example: "2025-2026"
+                startDate: 
+                  type: string
+                  format: date
+                endDate: 
+                  type: string
+                  format: date
+                isCurrent:
+                  type: boolean
+      responses:
+        201:
+          description: Année créée
+
+  /admin/classes:
+    post:
+      summary: Créer une classe
+      tags: [Academic]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                code: 
+                  type: string
+                  example: "ING4-ISI"
+                name: 
+                  type: string
+                level: 
+                  type: integer
+                academicYear: 
+                  type: string
+      responses:
+        201:
+          description: Classe créée
+
+  /admin/classes/{yearId}:
+    get:
+      summary: Lister les classes par année
+      tags: [Academic]
+      parameters:
+        - in: path
+          name: yearId
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Liste des classes
+
+  /admin/courses:
+    post:
+      summary: Créer un cours (UE)
+      tags: [Academic]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                code: 
+                  type: string
+                  example: "ISI4217"
+                name: 
+                  type: string
+                classId: 
+                  type: string
+                semester: 
+                  type: integer
+      responses:
+        201:
+          description: Cours créé
+
+  # --- GESTION QUIZ (ADMIN) ---
+  /quiz/question:
+    post:
+      summary: Créer une question manuellement
+      tags: [Quiz Management]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                courseId:
+                  type: string
+                text:
+                  type: string
+                type:
+                  type: string
+                  enum: [MCQ, OPEN, CLOSED]
+                options:
+                  type: array
+                  items: 
+                    type: string
+      responses:
+        201:
+          description: Question créée
+
+  /quiz/import:
+    post:
+      summary: Importer des questions depuis Excel
+      tags: [Quiz Management]
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                courseId:
+                  type: string
+                file:
+                  type: string
+                  format: binary
+      responses:
+        200:
+          description: Import réussi
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  importedCount:
+                    type: integer
+
+  /quiz/publish:
+    post:
+      summary: Publier un quiz (et envoyer notification)
+      tags: [Quiz Management]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                courseId:
+                  type: string
+                type:
+                  type: string
+                  enum: [MI_PARCOURS, FINAL]
+                deadline:
+                  type: string
+                  format: date-time
+                questionIds:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        201:
+          description: Quiz publié
+
+  # --- ESPACE ÉTUDIANT ---
+  /student/quizzes:
+    get:
+      summary: Récupérer les quiz à faire pour ma classe
+      tags: [Student]
+      responses:
+        200:
+          description: Liste des quiz
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Quiz'
+
+  /student/submit:
+    post:
+      summary: Soumettre un quiz (Offline sync compatible)
+      tags: [Student]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Submission'
+      responses:
+        201:
+          description: Soumission enregistrée et anonymisée
+
+  /student/update-class:
+    put:
+      summary: Mettre à jour sa classe (Passage année N+1)
+      tags: [Student]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                newClassId:
+                  type: string
+      responses:
+        200:
+          description: Classe mise à jour
+
+  /student/fcm-token:
+    post:
+      summary: Enregistrer le token Firebase Cloud Messaging
+      tags: [Student]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                token:
+                  type: string
+      responses:
+        200:
+          description: Token enregistré
+
+  # --- STATISTIQUES (ADMIN) ---
+  /stats/quiz/{quizId}:
+    get:
+      summary: Obtenir les statistiques et l'analyse IA d'un quiz
+      tags: [Stats & IA]
+      parameters:
+        - in: path
+          name: quizId
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Données statistiques
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  overview:
+                    type: object
+                    properties:
+                      totalSubmissions: 
+                        type: integer
+                      avgSentiment:
+                        type: number
+                  sentimentDistribution:
+                    type: object
+                    properties:
+                      positive:
+                        type: integer
+                      neutral:
+                        type: integer
+                      negative:
+                        type: integer
